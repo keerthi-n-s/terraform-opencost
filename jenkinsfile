@@ -1,0 +1,39 @@
+pipeline {
+  agent {
+		label 'lite'
+  		}
+
+    environment {
+        // Define AWS credentials for EKS
+        AWS_REGION = 'us-east-2'
+		//TERRAFORM_VERSION = '1.7.3' 
+        // Define EKS cluster name
+        EKS_CLUSTER_NAME = 'tg-tekton-eks-cluster'
+    }
+  tools {
+	terraform 'terraform'
+  }
+
+    stages {
+
+        stage('Install opencost') {
+            steps {
+			sh 'mkdir -p /root/.aws'
+			withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-eks-tektontg-cred', accessKeyVariable: 'AWS_ACCESS_KEY_ID', secretKeyVariable: 'AWS_SECRET_ACCESS_KEY']]) {
+			sh ' echo "[default]\naws_access_key_id = $AWS_ACCESS_KEY_ID\naws_secret_access_key = $AWS_SECRET_ACCESS_KEY" > /root/.aws/credentials '
+			sh 'cat /root/.aws/credentials'
+
+            sh 'aws eks --region $AWS_REGION update-kubeconfig --name $EKS_CLUSTER_NAME'
+			sh "sed -i 's/v1alpha1/v1beta1/' /root/.kube/config"
+			sh 'cat /root/.kube/config'
+                }
+				
+			  sh 'terraform init -upgrade'
+			  sh 'cat /root/.kube/config'
+              sh 'terraform apply -auto-approve'
+
+            }
+        }
+    }
+
+}
