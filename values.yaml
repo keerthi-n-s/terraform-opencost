@@ -95,7 +95,7 @@ service:
   # --  Labels to add to the service account
   labels: {}
   # --  Kubernetes Service type
-  type: ClusterIP
+  type: LoadBalancer
   # -- extra ports.  Useful for sidecar pods such as oauth-proxy
   extraPorts: []
     # - name: oauth-proxy
@@ -112,7 +112,9 @@ rbac:
 opencost:
   # -- <SECRET_NAME> for the secret containing the Cloud Costs cloud-integration.json https://www.opencost.io/docs/configuration/#cloud-costs
   # -- kubectl create secret generic <SECRET_NAME> --from-file=cloud-integration.json -n opencost
-  cloudIntegrationSecret: ""
+  cloudIntegrationSecret: cloud-costs
+  #config:
+  #  ATHENA_BUCKET_NAME: "aws-athena-query-results-opencost-poc"
   exporter:
     # API_PORT for the cost-model to listen on
     apiPort: 9003
@@ -120,7 +122,7 @@ opencost:
     # -- The GCP Pricing API requires a key. This is supplied just for evaluation.
     cloudProviderApiKey: ""
     # -- Default cluster ID to use if cluster_id is not set in Prometheus metrics.
-    defaultClusterId: 'default-cluster'
+    defaultClusterId: 'tg-tekton-eks-cluster'
     image:
       # -- Exporter container image registry
       registry: ghcr.io
@@ -220,7 +222,7 @@ opencost:
       # FOO: BAR
   customPricing:
     # -- Enables custom pricing configuration
-    enabled: false
+    enabled: true
     # -- Customize the configmap name used for custom pricing
     configmapName: custom-pricing-model
     # -- Path for the pricing configuration.
@@ -228,7 +230,7 @@ opencost:
     # -- Configures the pricing model provided in the values file.
     createConfigmap: true
     # -- Sets the provider type for the custom pricing file.
-    provider: custom
+    provider: aws
     # -- More information about these values here: https://www.opencost.io/docs/configuration/on-prem#custom-pricing-using-the-opencost-helm-chart
     costModel:
       description: Modified pricing configuration.
@@ -241,13 +243,24 @@ opencost:
       zoneNetworkEgress: 0.01
       regionNetworkEgress: 0.01
       internetNetworkEgress: 0.12
+      spotLabel: kops.k8s.io/instancegroup
+      spotLabelValue: spotinstance-nodes
+      awsSpotDataRegion: us-east-2
+      awsSpotDataBucket: open-cost-poc
+      awsSpotDataPrefix: spot-data-feed
+      athenaBucketName: s3://aws-athena-query-results-opencost-poc
+      athenaRegion: us-east-2
+      athenaDatabase: athenacurcfn_opencost_poc_report
+      athenaTable: opencost_poc_report
+      projectID: 860602188711
+      
 
   dataRetention:
     dailyResolutionDays: 15
 
   cloudCost:
     # -- Enable cloud cost ingestion and querying, dependant on valid integration credentials
-    enabled: false
+    enabled: true
     # -- Number of hours between each run of the Cloud Cost pipeline
     refreshRateHours: 6
     # -- Number of days into the past that a Cloud Cost standard run will query for
@@ -265,9 +278,9 @@ opencost:
       # -- Enable emission of namespace annotations
       emitNamespaceAnnotations: ""
       # -- Enable emission of KSM v1 metrics
-      emitKsmV1Metrics: ""
+      emitKsmV1Metrics: false
       # -- Enable only emission of KSM v1 metrics that do not exist in KSM 2 by default
-      emitKsmV1MetricsOnly: ""
+      emitKsmV1MetricsOnly: true
 
     serviceMonitor:
       # -- Create ServiceMonitor resource for scraping metrics using PrometheusOperator
@@ -323,18 +336,18 @@ opencost:
     bearer_token_key: DB_BEARER_TOKEN
     external:
       # -- Use external Prometheus (eg. Grafana Cloud)
-      enabled: true
+      enabled: false
       # -- External Prometheus url
-      url: "http://a132fc719d5834d73bc43a12a07d4ab6-814217125.us-east-2.elb.amazonaws.com:9090"
+      url: "https://prometheus.example.com/prometheus"
     internal:
       # -- Use in-cluster Prometheus
-      enabled: false
+      enabled: true
       # -- Service name of in-cluster Prometheus
-      serviceName: prometheus-server
+      serviceName: prometheus-v3-kube-prometh-prometheus
       # -- Namespace of in-cluster Prometheus
-      namespaceName: prometheus-system
+      namespaceName: prometheus
       # -- Service port of in-cluster Prometheus
-      port: 80
+      port: 9090
     amp:
       # -- Use Amazon Managed Service for Prometheus (AMP)
       enabled: false  # If true, opencost will be configured to remote_write and query from Amazon Managed Service for Prometheus.
@@ -379,7 +392,7 @@ opencost:
         memory: '1Gi'
     # used in the default.nginx.conf if you want to switch for using with Docker
     # apiServer: 0.0.0.0
-    uiPort: 9090
+    uiPort: 8080
     # Liveness probe configuration
     livenessProbe:
       # -- Whether probe is enabled
@@ -447,8 +460,8 @@ opencost:
     imagePullPolicy: IfNotPresent
     name: aps
     port: 8005
-    region: us-west-2 # The AWS region
-    host: aps-workspaces.us-west-2.amazonaws.com # The hostname for AMP service.
+    region: us-east-2 # The AWS region
+    host: aps-workspaces.us-east-2.amazonaws.com # The hostname for AMP service.
     # role_arn: arn:aws:iam::<account>:role/role-name # The AWS IAM role to assume.
     extraEnv: # Pass extra env variables to sigV4Proxy
     # - name: AWS_ACCESS_KEY_ID

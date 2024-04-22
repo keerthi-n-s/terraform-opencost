@@ -35,7 +35,7 @@ resource "helm_release" "opencost" {
   repository = "https://opencost.github.io/opencost-helm-chart"
   chart      = "opencost"
   version    = var.opencost_helm_version
-  create_namespace = create
-  namespace        = var.namespace
+  create_namespace = false
+  namespace        = "opencost"
   values = [file("values.yaml")]
 }
